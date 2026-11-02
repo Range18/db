@@ -32,14 +32,22 @@ namespace Game.Domain
 
         public UserEntity GetOrCreateByLogin(string login)
         {
-            var user = userCollection.Find(user => user.Login == login).FirstOrDefault();
+            var filter = Builders<UserEntity>.Filter
+                .Eq(user => user.Login, login);
 
-            if (user == null)
-            {
-                return Insert(new UserEntity { Login = login });
-            }
+            var update = Builders<UserEntity>.Update
+                .SetOnInsert(user => user.Id, Guid.NewGuid())
+                .SetOnInsert(user => user.Login, login);
 
-            return user;
+            return userCollection.FindOneAndUpdate(
+                filter,
+                update,
+                new FindOneAndUpdateOptions<UserEntity>
+                {
+                    IsUpsert = true,
+                    ReturnDocument = ReturnDocument.After
+                }
+            );
         }
 
         public void Update(UserEntity user)
@@ -56,8 +64,21 @@ namespace Game.Domain
         // страницы нумеруются с единицы
         public PageList<UserEntity> GetPage(int pageNumber, int pageSize)
         {
-            //TODO: Тебе понадобятся SortBy, Skip и Limit
-            throw new NotImplementedException();
+            var totalCount = userCollection.CountDocuments(_ => true);
+
+            var users = userCollection
+                .Find(_ => true)
+                .SortBy(user => user.Login)
+                .Skip((pageNumber - 1) * pageSize)
+                .Limit(pageSize)
+                .ToList();
+
+            return new PageList<UserEntity>(
+                users,
+                totalCount,
+                pageNumber,
+                pageSize
+            );
         }
 
         // Не нужно реализовывать этот метод
